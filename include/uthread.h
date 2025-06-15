@@ -33,21 +33,21 @@ typedef enum {
 
 typedef struct uthread {
     uthread_t tid;
-    void *stack;
-    void *retval;            
-    thread_state_t state; 
-    void (*start_func)(void *); // Function to run
-    void *arg;
-    struct uthread *waiting_thread;
+    void* stack;
+    void* retval;
+    thread_state_t state;
+    void (*start_func)(void*);
+    void* arg;
+    struct uthread* waiting_thread;
     jmp_buf context;
 } uthread_tcb_t;
 
-int uthread_create(void (*start_routine)(void *), void *arg); 
-int uthread_join(uthread_t tid, void **retval);
-void uthread_exit(void *retval);
-uthread_t uthread_self(void);
-void uthread_yield(void);
-void uthread_run(void);
+int uthread_create(void (*start_routine)(void*), void* arg);
+int uthread_join(uthread_t tid, void** retval);
+void uthread_exit(void* retval); // exit the current thread
+uthread_t get_tid(void); // get the current thread ID
+void uthread_yield(void); // yield the CPU to another thread
+void uthread_run(void); // start the thread scheduler
 
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;
