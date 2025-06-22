@@ -4,18 +4,19 @@
 #include <setjmp.h>
 #include "mutex.h"
 #include "cond.h"
+#include <ucontext.h>
 
-#define STACK_SIZE 8192
+#define STACK_SIZE 4096
 #define MAX_THREADS 64
 
 typedef int uthread_t;
 
 typedef enum {
+    THREAD_UNUSED,
     THREAD_READY,
     THREAD_RUNNING,
     THREAD_BLOCKED,
-    THREAD_ZOMBIE,
-    THREAD_UNUSED
+    THREAD_ZOMBIE
 } thread_state_t;
 
 /**
@@ -39,9 +40,10 @@ typedef struct uthread {
     void (*start_func)(void*);
     void* arg;
     struct uthread* waiting_thread;
-    jmp_buf context;
+    ucontext_t context;
 } uthread_tcb_t;
 
+void print_thread(uthread_tcb_t tcb); // for debugging purposes
 int uthread_create(void (*start_routine)(void*), void* arg);
 int uthread_join(uthread_t tid, void** retval);
 void uthread_exit(void* retval); // exit the current thread
