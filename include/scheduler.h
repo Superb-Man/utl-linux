@@ -20,7 +20,7 @@ void scheduler_init(void) {
 void enqueue_thread(uthread_tcb_t *tcb) {
     if (tcb->state == THREAD_READY && tcb->tid != 0) {
         queue_push(&ready_queue, tcb);
-        printf("Queue size after enqueue: %d\n", queue_size(&ready_queue));
+        DEBUG_PRINT("Queue size after enqueue: %d\n", queue_size(&ready_queue));
     }
 }
 
@@ -36,7 +36,7 @@ void schedule_next(void) {
         next = NULL;
     }
 
-    printf("[scheduler] Switching from thread %d to thread %d\n", current_tid, next ? next->tid : -1);
+    DEBUG_PRINT("[scheduler] Switching from thread %d to thread %d\n", current_tid, next ? next->tid : -1);
 
 
     if (!next) {
@@ -50,7 +50,7 @@ void schedule_next(void) {
         }
 
         if (!any_active) {
-            printf("[scheduler] All threads have finished.\n");
+            ERROR_PRINT("[scheduler] All threads have finished.\n");
             exit(0);
         }
 
@@ -60,9 +60,9 @@ void schedule_next(void) {
     current_tid = next->tid;
     next->state = THREAD_RUNNING;
 
-    printf("[scheduler] Switching to thread %d\n", current_tid);
-    printf("address of prev->context: %p\n", (void*)&prev->context);
-    printf("address of next->context: %p\n", (void*)&next->context);
+    DEBUG_PRINT("Switching from thread %d to thread %d\n", prev->tid, next->tid);
+    DEBUG_PRINT("address of prev->context: %p\n", (void*)&prev->context);
+    DEBUG_PRINT("address of next->context: %p\n", (void*)&next->context);
 
 
     swapcontext(&prev->context, &next->context);

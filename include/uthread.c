@@ -19,13 +19,14 @@ uthread_t current_tid = 0;
 
 
 void print_thread(uthread_tcb_t tcb) {
-    printf("Thread ID: %d\n", tcb.tid);
-    printf("State: %d\n", tcb.state);
-    printf("Stack: %p\n", tcb.stack);
-    printf("Return Value: %p\n", tcb.retval);
-    printf("Start Function: %p\n", tcb.start_func);
-    printf("Argument: %p\n", tcb.arg);
-    printf("Waiting Thread: %p\n", tcb.waiting_thread);
+    DEBUG_PRINT("Thread ID: %d\n", tcb.tid);
+    DEBUG_PRINT("State: %d\n", tcb.state);
+    DEBUG_PRINT("Stack: %p\n", tcb.stack);  
+    DEBUG_PRINT("Return Value: %p\n", tcb.retval);
+    DEBUG_PRINT("Start Function: %p\n", tcb.start_func);
+    DEBUG_PRINT("Argument: %p\n", tcb.arg);
+    DEBUG_PRINT("Waiting Thread: %p\n", tcb.waiting_thread);
+    DEBUG_PRINT("Context: %p\n", &tcb.context);
 }
 
 int get_tid(void) {
@@ -35,7 +36,8 @@ int get_tid(void) {
 }
 
 void thread_wrapper(void) {
-    printf("Thread %d started\n", current_tid);
+    DEBUG_PRINT("Thread started: %d\n", current_tid);
+
     // This function is the entry point for the thread
     uthread_tcb_t* tcb = &thread_table[current_tid];
     tcb->start_func(tcb->arg);
@@ -46,11 +48,11 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
 
     for (int i = 1; i < MAX_THREADS; ++i) {
 
-        printf("Thread %d state: %d\n", i, thread_table[i].state);
+        DEBUG_PRINT("Thread %d stack: %p\n", i, thread_table[i].stack);
 
         if (thread_table[i].state == THREAD_UNUSED) { // if the thread is unused
             if (posix_memalign((void **)&thread_table[i].stack, 16, STACK_SIZE) != 0) {
-                perror("Failed to allocate aligned stack for thread");
+                ERROR_PRINT("Failed to allocate aligned stack for thread %d\n", i);
                 return -1;
             }
             
@@ -71,13 +73,13 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
             makecontext(ctx, (void (*)(void))thread_wrapper, 0);
 
             enqueue_thread(&thread_table[i]);
-            printf("Created thread %d with stack at %p\n", i, thread_table[i].stack);
+            DEBUG_PRINT("Created thread %d with stack at %p\n", i, thread_table[i].stack);
             return i;
 
         }
     }
 
-    perror("No available thread slots\n");
+    ERROR_PRINT("No available thread slots\n");
     return -1;
 }
 
@@ -103,7 +105,7 @@ void uthread_yield(void) {
         enqueue_thread(current);
     }
 
-    printf("[uthread_yield] Yielding thread %d\n", current_tid);
+    DEBUG_PRINT("[uthread_yield] Yielding thread %d\n", current_tid);
     schedule_next(); 
 }
 

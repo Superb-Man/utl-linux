@@ -5,6 +5,7 @@
 #include "mutex.h"
 #include "cond.h"
 #include <ucontext.h>
+#include "debug.h"
 
 #define STACK_SIZE 4096
 #define MAX_THREADS 64
