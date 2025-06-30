@@ -7,7 +7,7 @@
 #include <ucontext.h>
 #include "debug.h"
 
-#define STACK_SIZE 4096
+#define STACK_SIZE 16*4096
 #define MAX_THREADS 64
 
 typedef int uthread_t;
@@ -44,13 +44,14 @@ typedef struct uthread {
     ucontext_t context;
 } uthread_tcb_t;
 
+void uthread_init(); // initialize the thread system
 void print_thread(uthread_tcb_t tcb); // for debugging purposes
 int uthread_create(void (*start_routine)(void*), void* arg);
-int uthread_join(uthread_t tid, void** retval);
+void* uthread_join(uthread_t tid);
 void uthread_exit(void* retval); // exit the current thread
 uthread_t get_tid(void); // get the current thread ID
-void uthread_yield(void); // yield the CPU to another thread
-void uthread_run(void); // start the thread scheduler
+void uthread_yield(); // yield the CPU to another thread
+void uthread_run(); // start the thread scheduler
 
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;
