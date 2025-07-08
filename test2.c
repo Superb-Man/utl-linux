@@ -1,5 +1,3 @@
-// write a program to compute prime factors of number from 50 to 100 and print them in 5 different threads
-// i mean 50-60 in one thread, 61-70 in another, 71-80 in another, 81-90 in another, and 91-100 in the last thread
 #include <stdio.h>
 #include "include/uthread.h"
 
@@ -36,7 +34,6 @@ void thread_prime_factors(void* arg) {
 }
 
 int main() {
-    uthread_init(); 
     int ranges[6][2] = {
         {1, 10},
         {61, 70},
@@ -56,6 +53,7 @@ int main() {
     }
     thread_ids[5] = uthread_create(thread_prime_factors, ranges[5]);
 
+    uthread_run();
 
     // for (int i = 0; i < 5; i++) {
     //     void* retval = uthread_join(thread_ids[i]);

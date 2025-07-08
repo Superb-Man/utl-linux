@@ -36,15 +36,6 @@ int get_tid(void) {
     return current_tid;
 }
 
-void uthread_init() {
-    thread_table[0].tid = 0;
-    thread_table[0].state = THREAD_RUNNING;
-    thread_table[0].stack = NULL; 
-    thread_table[0].waiting_thread = NULL;
-    current_tid = 0;
-}
-
-
 /**
  * @brief Thread wrapper function.
  * 
@@ -191,4 +182,14 @@ void* uthread_join(uthread_t tid) {
     DEBUG_PRINT("[uthread_join] Thread %d has finished, return value: %p\n", tid, target->retval);
 
    return target->retval;
+}
+
+void uthread_run(void) {
+    thread_table[0].tid = 0;
+    thread_table[0].state = THREAD_RUNNING;
+    thread_table[0].stack = NULL;
+    getcontext(&thread_table[0].context);
+
+    current_tid = 0;
+    schedule_next();
 }

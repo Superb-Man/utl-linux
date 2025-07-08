@@ -22,17 +22,18 @@ typedef enum {
 
 /**
  * uthread_tcb_t - Thread Control Block structure
+ * 
  * Represents a thread's state, stack, and other attributes.
- * * @tid: Thread ID
- * * @stack: Pointer to the thread's stack
- * * @retval: Return value after thread exits
- * * @state: Current state of the thread (READY, RUNNING, BLOCKED, ZOMBIE, UNUSED)
- * * @start_func: Function to execute when the thread starts
- * * @arg: Argument to pass to the start function
- * * @waiting_thread: Pointer to the thread that is waiting for this thread to finish
- * * @context: Context for the thread, used for switching between threads
+ *
+ * @tid: Thread ID
+ * @stack: Pointer to the thread's stack
+ * @retval: Return value after thread exits
+ * @state: Current state of the thread (READY, RUNNING, BLOCKED, ZOMBIE, UNUSED)
+ * @start_func: Function to execute when the thread starts
+ * @arg: Argument to pass to the start function
+ * @waiting_thread: Pointer to the thread that is waiting for this thread to finish
+ * @context: Context for the thread, used for switching between threads
  */
-
 typedef struct uthread {
     uthread_t tid;
     void* stack;
@@ -44,7 +45,6 @@ typedef struct uthread {
     ucontext_t context;
 } uthread_tcb_t;
 
-void uthread_init(); // initialize the thread system
 void print_thread(uthread_tcb_t tcb); // for debugging purposes
 int uthread_create(void (*start_routine)(void*), void* arg);
 void* uthread_join(uthread_t tid);
