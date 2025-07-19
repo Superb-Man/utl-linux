@@ -9,11 +9,14 @@ int printLk(int signum) {
     printf("%s", str);
     counter++;
     printf(" (Counter: %d)\n", counter);
-    return counter;
+    return counter * 2;
 }
 
 void prints(int signum) {
     printf("Signal received in different context: %d\n", signum);
+    counter++;
+    printf(" (Counter: %d)\n", counter);
+
 }
 
 void shutDownProcess(int signum) {
@@ -23,31 +26,37 @@ void shutDownProcess(int signum) {
 void (*sigint_handlers[])(int) = { (void (*)(int))printLk, prints };
 size_t sigint_handler_count = sizeof(sigint_handlers) / sizeof(sigint_handlers[0]);
 
-void sigint_dispatcher(int signum) {
-    printf("Size is %zu\n", sizeof(sigint_handlers));
-
-    for (size_t i = 0; i < sigint_handler_count; ++i) {
-        sigint_handlers[i](signum);
-    }
+void interrupt(int signum, void (*handler)(int)) {
+    signal(signum, handler);
+    printf("Signal %d registered with handler %p\n", signum, (void*)handler);
 }
 
 int main() {
-    signal(SIGINT, sigint_dispatcher);
+    interrupt(SIGINT, sigint_handlers[0]);
     signal(SIGTERM, shutDownProcess);
     int b = 0;
     // signal(SIGKILL, shutDownProcess); // Note: SIGKILL cannot be caught or ignored
     while (1) {
         printf("Running...\n");
-        if (counter >= 3 && !b) {
-            raise(SIGINT); // automatically raises SIGINT after 3 counts. No need to press Ctrl+C for counter value to be 4
+        if (counter %4 == 2 && !b) {
+            interrupt(SIGINT, sigint_handlers[0]); // automatically raises SIGINT after 3 counts. No need to press Ctrl+C for counter value to be 4
+            raise(SIGINT);
+            printf("SIGINT raised\n");
             b = 1; // Prevents multiple raises of SIGINT
         }
-        if (counter >= 5) {
-            printf("Counter reached 5, sending SIGTERM to self...\n");
+        else if (b == 1) {
+            interrupt(SIGINT, sigint_handlers[1]);
+            raise(SIGINT);
+            printf("SIGINT raised again\n");
+            b = 0;
+            interrupt(SIGINT, sigint_handlers[0]);
+        }
+        if (counter >= 15) {
+            printf("Counter reached 15, sending SIGTERM to self...\n");
             raise(SIGTERM);
         }
-        if (counter >= 10) {
-            printf("Counter reached 10, exiting...\n");
+        if (counter >= 50) {
+            printf("Counter reached 50, exiting...\n");
             break;
         }
         sleep(1);
