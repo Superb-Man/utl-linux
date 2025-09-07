@@ -6,6 +6,9 @@
 #include "cond.h"
 #include <ucontext.h>
 #include "debug.h"
+#include <signal.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #define STACK_SIZE 16*4096
 #define MAX_THREADS 64
@@ -43,6 +46,7 @@ typedef struct uthread {
     void* arg;
     struct uthread* waiting_thread;
     ucontext_t context;
+    long long wakeup_time;
 } uthread_tcb_t;
 
 void print_thread(uthread_tcb_t tcb); // for debugging purposes
@@ -51,9 +55,18 @@ void* uthread_join(uthread_t tid);
 void uthread_exit(void* retval); // exit the current thread
 uthread_t get_tid(void); // get the current thread ID
 void uthread_yield(); // yield the CPU to another thread
-void uthread_run(); // start the thread scheduler
+void uthread_run(void); // start the thread scheduler
+void uthread_sleep(int ms);
 
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;
+
+extern struct itimerval timer;
+extern sigset_t signal_set;
+
+#define block() sigprocmask(SIG_BLOCK, &signal_set, NULL)
+#define unblock() sigprocmask(SIG_UNBLOCK, &signal_set, NULL)
+
+void timer_handler(int signum);
 
 #endif

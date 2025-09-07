@@ -2,8 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <signal.h>
-#include <sys/time.h>
 
 #include "uthread.h"
 #include "scheduler.h"
@@ -16,7 +14,9 @@
 uthread_tcb_t thread_table[MAX_THREADS];  
 uthread_t current_tid = 0;         
 int thread_start = 0;        
-
+int time_slice_ms = 10;
+struct itimerval timer;
+sigset_t signal_set;
 
 
 void print_thread(uthread_tcb_t tcb) {
@@ -30,23 +30,40 @@ void print_thread(uthread_tcb_t tcb) {
 
 }
 
+long long now_ms() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (long long)(tv.tv_sec) * 1000 + (tv.tv_usec / 1000);
+}
+
+
 int get_tid(void) {
     // This function should return the current thread ID
     // Assuming current_tid is a global variable that holds the ID of the currently running thread
     return current_tid;
 }
 
-/**
- * @brief Thread wrapper function.
- * 
- * This function is called when a thread is created. It executes the thread's start function.
- * 
- */
+
 void thread_wrapper() {
+    // This function is called when a thread is created
+    // This function is called when a thread is created. It executes the thread's start function.
+
     DEBUG_PRINT("Thread started: %d\n", current_tid);
     uthread_tcb_t* tcb = &thread_table[current_tid];
     tcb->start_func(tcb->arg);
     uthread_exit(NULL); // Exit the thread when done
+}
+
+
+void timer_handler(int signum) {
+    // This function is called when the timer expires
+    // It should yield the current thread and schedule the next one
+    printf("Timer expired for thread %d\n", current_tid);
+    if (thread_table[current_tid].state == THREAD_RUNNING) {
+        thread_table[current_tid].state = THREAD_READY;
+        enqueue_thread(&thread_table[current_tid]);
+        schedule_next();
+    }
 }
 
 /**
@@ -61,7 +78,7 @@ void thread_wrapper() {
  * @return The thread ID of the newly created thread, or -1 if no slots are available.
  */
 int uthread_create(void (*start_routine)(void* ), void* arg) {
-
+    block(); 
     for (int i = 1; i < MAX_THREADS; ++i) {
 
         DEBUG_PRINT("Thread %d stack: %p\n", i, thread_table[i].stack);
@@ -69,6 +86,8 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
         if (thread_table[i].state == THREAD_UNUSED) { // if the thread is unused
             if (posix_memalign((void **)&thread_table[i].stack, 16, STACK_SIZE) != 0) {
                 ERROR_PRINT("Failed to allocate aligned stack for thread %d\n", i);
+                unblock();
+                ERROR_PRINT("posix_memalign failed");
                 return -1;
             }
             
@@ -87,20 +106,26 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
             ctx->uc_stack.ss_size = STACK_SIZE;
             ctx->uc_link = NULL;
             makecontext(ctx, (void (*)(void))thread_wrapper, 0);
-
+            // int active = 0;
+            // for (int j = 1; j < MAX_THREADS; ++j) {
+            //     if (thread_table[j].state == THREAD_READY || thread_table[j].state == THREAD_RUNNING)
+            //         active++;
+            // }
             enqueue_thread(&thread_table[i]);
             DEBUG_PRINT("Created thread %d with stack at %p\n", i, thread_table[i].stack);
-
-
+            unblock();
+            // if (active == 1 && current_tid == 0 && thread_table[0].state == THREAD_RUNNING) {
+            //     uthread_yield();   // this calls schedule_next()
+            // }
             return i;
 
         }
     }
 
     ERROR_PRINT("No available thread slots\n");
+    unblock();
     return -1;
 }
-
 
 /**
  * @brief Exit the current thread.
@@ -116,7 +141,7 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
  * If the thread was joined by another thread, this value will be returned to that thread.
  */
 void uthread_exit(void* retval) {
-
+    block();
     uthread_tcb_t* tcb = &thread_table[current_tid];
     tcb->retval = retval;
     tcb->state = THREAD_ZOMBIE;
@@ -126,6 +151,7 @@ void uthread_exit(void* retval) {
         enqueue_thread(tcb->waiting_thread);
     }
 
+    unblock();
     uthread_yield();
 }
 
@@ -138,6 +164,7 @@ void uthread_exit(void* retval) {
  * User has to call this function to allow other threads to run.
  */
 void uthread_yield() {
+    block();
     uthread_tcb_t* current = &thread_table[current_tid];
 
     if (current->state == THREAD_RUNNING && current_tid != 0) {
@@ -146,6 +173,7 @@ void uthread_yield() {
     }
 
     DEBUG_PRINT("[uthread_yield] Yielding thread %d\n", current_tid);
+    unblock();
     schedule_next(); 
 }
 
@@ -169,11 +197,13 @@ void* uthread_join(uthread_t tid) {
     uthread_tcb_t* target = &thread_table[tid];
 
     if (target->state != THREAD_ZOMBIE) {
+        block();
         uthread_tcb_t* current = &thread_table[current_tid];
         current->state = THREAD_BLOCKED;
         target->waiting_thread = current;
 
         DEBUG_PRINT("[uthread_join] Blocking thread %d, waiting for thread %d to finish\n", current_tid, tid);
+        unblock();
         uthread_yield(); // Yield to allow the target thread to run
     }
 
@@ -184,12 +214,47 @@ void* uthread_join(uthread_t tid) {
    return target->retval;
 }
 
-void uthread_run(void) {
+/**
+ * @brief Initializes the signal handler and timer for thread scheduling.
+ * 
+ * This function sets up a signal handler for SIGALRM, which is used to trigger
+ * the timer for thread scheduling. It also initializes the timer with the specified time slice.
+ */
+void init() {
+    printf("Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
+    struct sigaction sa; 
+    sa.sa_handler = timer_handler; // Set the signal handler for SIGALRM
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    if (sigaction(SIGALRM, &sa, NULL) == -1) { // Set up the signal handler
+        ERROR_PRINT("Failed to set up signal handler\n");
+        exit(EXIT_FAILURE);
+    }
+
+    timer.it_value.tv_sec = time_slice_ms / 1000;
+    timer.it_value.tv_usec = (time_slice_ms % 1000) * 1000;
+    timer.it_interval = timer.it_value;
+
+    if (setitimer(ITIMER_REAL, &timer, NULL) == -1) {
+        ERROR_PRINT("Failed to set up timer\n");
+        exit(EXIT_FAILURE);
+    }
+    sigemptyset(&signal_set);
+    sigaddset(&signal_set, SIGALRM);
+}
+
+void 
+uthread_run(void) {
     thread_table[0].tid = 0;
     thread_table[0].state = THREAD_RUNNING;
     thread_table[0].stack = NULL;
+    // main thread function is the main function
+    thread_table[0].start_func = NULL;
     getcontext(&thread_table[0].context);
-
     current_tid = 0;
+
+    init();
     schedule_next();
 }
+

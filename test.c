@@ -1,27 +1,48 @@
 #include <stdio.h>
 #include "include/uthread.h"
 
+int cnt = 0;
+
+// A dummy thread function
 void dummy_thread(void* arg) {
-    int id = *(int* )arg;
-    printf("arg: %d\n", id);
-    for (int i = 0; i < 3; ++i) {
-        printf("Thread %d: iteration %d\n", id, i);
-        uthread_yield();  // Cooperative yield to allow another thread to run
-    }
+    int id = *(int*)arg;
+    sleep(3);
+
+    // simulate doing work
+    // uthread_sleep(3);
+    // for (int i = 0; i < 20000000; i++) {
+        // cnt++;
+        // yield to let other threads (including main) run
+        // uthread_yield();
+    // }
+
+    printf("Thread %d finished, final cnt = %d\n", id, cnt);
 }
 
 int main() {
-    int ids[3] = {1, 2, 3};
-    int t1 = uthread_create(dummy_thread, &ids[0]);
-    int t2 = uthread_create(dummy_thread, &ids[1]);
-    int t3 = uthread_create(dummy_thread, &ids[2]);
+    // start user thread scheduler
 
-    if (t1 >= 0 && t2 >= 0 && t3 >= 0) {
-        printf("Successfully created threads: %d, %d, %d\n", t1, t2, t3);
-        uthread_run(); // Start the thread scheduler
-    } 
-    else {
-        printf("Failed to create threads.\n");
+    int ids[3] = {1, 2, 3};
+
+    // create three dummy threads
+    int t1 = uthread_create(dummy_thread, &ids[0]);
+    // int t2 = uthread_create(dummy_thread, &ids[1]);
+    // int t3 = uthread_create(dummy_thread, &ids[2]);
+    // sleep(2);
+    uthread_run();
+
+
+    // main thread also does some work
+    for (int i = 0; i < 2000000; i++) {
+        cnt++;
+        // printf("Main thread: iteration %d, cnt = %d\n", i, cnt);
+
+        // uthread_yield();
     }
+    uthread_join(t1);
+    // uthread_join(t2);
+    // uthread_join(t3);
+
+    printf("All threads finished. Final cnt = %d\n", cnt);
     return 0;
 }
