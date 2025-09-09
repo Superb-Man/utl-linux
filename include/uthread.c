@@ -55,7 +55,8 @@ void thread_wrapper() {
 }
 
 
-void timer_handler(int signum) {
+void 
+timer_handler(int signum) {
     // This function is called when the timer expires
     // It should yield the current thread and schedule the next one
     printf("Timer expired for thread %d\n", current_tid);
@@ -77,8 +78,10 @@ void timer_handler(int signum) {
  * @param arg The argument to be passed to the start function.
  * @return The thread ID of the newly created thread, or -1 if no slots are available.
  */
-int uthread_create(void (*start_routine)(void* ), void* arg) {
+int 
+uthread_create(void (*start_routine)(void* ), void* arg) {
     block(); 
+    // uthread_run();
     for (int i = 1; i < MAX_THREADS; ++i) {
 
         DEBUG_PRINT("Thread %d stack: %p\n", i, thread_table[i].stack);
@@ -112,11 +115,17 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
             //         active++;
             // }
             enqueue_thread(&thread_table[i]);
-            DEBUG_PRINT("Created thread %d with stack at %p\n", i, thread_table[i].stack);
             unblock();
-            // if (active == 1 && current_tid == 0 && thread_table[0].state == THREAD_RUNNING) {
-            //     uthread_yield();   // this calls schedule_next()
-            // }
+            
+            DEBUG_PRINT("Created thread %d with stack at %p\n", i, thread_table[i].stack);
+            if (thread_start == 0) {
+                DEBUG_PRINT("Starting thread scheduler\n");
+                uthread_run();
+            }
+            if (queue_size(&ready_queue) == 1 && !thread_start) {
+                DEBUG_PRINT("Scheduling next thread\n");
+                schedule_next();
+            }
             return i;
 
         }
@@ -140,7 +149,8 @@ int uthread_create(void (*start_routine)(void* ), void* arg) {
  * Stores the return value in the thread's TCB.
  * If the thread was joined by another thread, this value will be returned to that thread.
  */
-void uthread_exit(void* retval) {
+void 
+uthread_exit(void* retval) {
     block();
     uthread_tcb_t* tcb = &thread_table[current_tid];
     tcb->retval = retval;
@@ -163,7 +173,8 @@ void uthread_exit(void* retval) {
  * It changes the state of the current thread to READY and enqueues it for scheduling.
  * User has to call this function to allow other threads to run.
  */
-void uthread_yield() {
+void 
+uthread_yield() {
     block();
     uthread_tcb_t* current = &thread_table[current_tid];
 
@@ -183,7 +194,8 @@ void uthread_yield() {
  * @param tid The ID of the thread to wait for.
  * @return The return value of the terminated thread, or NULL if the thread is not joinable.
  */
-void* uthread_join(uthread_t tid) {
+void* 
+uthread_join(uthread_t tid) {
     if (tid < 0 || tid >= MAX_THREADS || thread_table[tid].state == THREAD_UNUSED ) {
         ERROR_PRINT("Invalid thread ID: %d\n", tid);
         return NULL;
@@ -220,7 +232,8 @@ void* uthread_join(uthread_t tid) {
  * This function sets up a signal handler for SIGALRM, which is used to trigger
  * the timer for thread scheduling. It also initializes the timer with the specified time slice.
  */
-void init() {
+void 
+init() {
     printf("Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
     struct sigaction sa; 
     sa.sa_handler = timer_handler; // Set the signal handler for SIGALRM
@@ -246,15 +259,19 @@ void init() {
 
 void 
 uthread_run(void) {
+    if (thread_start) {
+        ERROR_PRINT("Thread scheduler already started\n");
+        return;
+    }
     thread_table[0].tid = 0;
     thread_table[0].state = THREAD_RUNNING;
     thread_table[0].stack = NULL;
-    // main thread function is the main function
     thread_table[0].start_func = NULL;
     getcontext(&thread_table[0].context);
     current_tid = 0;
 
     init();
     schedule_next();
+    thread_start = 1;
 }
 
