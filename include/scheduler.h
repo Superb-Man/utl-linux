@@ -19,7 +19,7 @@ extern uthread_t current_tid;
 void enqueue_thread(uthread_tcb_t* tcb) {
     if (tcb->state == THREAD_READY) {
         queue_push(&ready_queue, tcb);
-        DEBUG_PRINT("[scheduler] Enqueued thread %d\n", tcb->tid);
+        DEBUG_PRINT("[enqueue_thread] Enqueued thread %d at the end of queue\n", tcb->tid);
 
     }
 }
@@ -34,7 +34,7 @@ void enqueue_thread(uthread_tcb_t* tcb) {
  */
 void schedule_next() {
     block();
-    DEBUG_PRINT("[current_tid] Current thread ID: %d\n", current_tid);
+    DEBUG_PRINT("[Schedule next] [current_tid] Current thread ID: %d\n", current_tid);
     uthread_tcb_t* prev = &thread_table[current_tid];
     uthread_tcb_t* next = NULL;
 
@@ -48,7 +48,7 @@ void schedule_next() {
         next = NULL;
     }
 
-    DEBUG_PRINT("[scheduler] Switching from thread %d to thread %d\n", current_tid, next ? next->tid : -1);
+    DEBUG_PRINT("[Schedule next] Switching from thread %d to thread %d\n", current_tid, next ? next->tid : -1);
     unblock();
 
     if (!next) {
@@ -62,7 +62,7 @@ void schedule_next() {
         }
 
         if (!any_active) {
-            ERROR_PRINT("[scheduler] All threads have finished.\n");
+            ERROR_PRINT("[Schedule next] All threads have finished.\n");
             exit(0);
         }
         return; 

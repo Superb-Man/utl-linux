@@ -20,22 +20,28 @@ void dummy_thread(void* arg) {
 }
 
 void main_thread_func(void* arg) {
+
+
     // start user thread scheduler
 
-    int ids[3] = {1, 2, 3};
+    int ids[3] = {2, 3, 4};
 
     // create three dummy threads
     int t1 = uthread_create(dummy_thread, &ids[0]);
-    // int t2 = uthread_create(dummy_thread, &ids[1]);
+    int t2 = uthread_create(dummy_thread, &ids[1]);
     // int t3 = uthread_create(dummy_thread, &ids[2]);
     // sleep(2);
     // uthread_run();
+    for (int i = 0; i <= 100000000; i++) {
+        //swiring test
+        // printf("My name is Lara\n");
+    }
 
 
     // main thread also does some work
     for (int i = 0; i < 2000000; i++) {
         cnt++;
-        printf("Main thread: iteration %d, cnt = %d\n", i, cnt);
+        // printf("Main thread: iteration %d, cnt = %d\n", i, cnt);
 
         // uthread_yield();
     }

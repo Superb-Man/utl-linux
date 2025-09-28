@@ -88,9 +88,9 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
 
         if (thread_table[i].state == THREAD_UNUSED) { // if the thread is unused
             if (posix_memalign((void **)&thread_table[i].stack, 16, STACK_SIZE) != 0) {
-                ERROR_PRINT("Failed to allocate aligned stack for thread %d\n", i);
+                ERROR_PRINT("[uthread_create] Failed to allocate aligned stack for thread %d\n", i);
                 unblock();
-                ERROR_PRINT("posix_memalign failed");
+                ERROR_PRINT("[uthread_create] posix_memalign failed");
                 return -1;
             }
             
@@ -117,13 +117,13 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
             enqueue_thread(&thread_table[i]);
             unblock();
             
-            DEBUG_PRINT("Created thread %d with stack at %p\n", i, thread_table[i].stack);
+            DEBUG_PRINT("[uthread_create] Created thread %d with stack at %p\n", i, thread_table[i].stack);
             if (thread_start == 0) {
-                DEBUG_PRINT("Starting thread scheduler\n");
+                DEBUG_PRINT("[uthread_create] Starting thread scheduler\n");
                 uthread_run();
             }
-            if (queue_size(&ready_queue) == 1 && !thread_start) {
-                DEBUG_PRINT("Scheduling next thread\n");
+            else if (queue_size(&ready_queue) == 1 && !thread_start) {
+                DEBUG_PRINT("[uthread_create] Scheduling next thread\n");
                 schedule_next();
             }
             return i;
@@ -131,7 +131,7 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
         }
     }
 
-    ERROR_PRINT("No available thread slots\n");
+    ERROR_PRINT("[uthread_create] No available thread slots\n");
     unblock();
     return -1;
 }
@@ -197,12 +197,12 @@ uthread_yield() {
 void* 
 uthread_join(uthread_t tid) {
     if (tid < 0 || tid >= MAX_THREADS || thread_table[tid].state == THREAD_UNUSED ) {
-        ERROR_PRINT("Invalid thread ID: %d\n", tid);
+        ERROR_PRINT("[uthread_join] Invalid thread ID: %d\n", tid);
         return NULL;
     }
 
     if (tid == current_tid) {
-        ERROR_PRINT("Cannot join the current thread: %d\n", tid);
+        ERROR_PRINT("[uthread_join] Cannot join the current thread: %d\n", tid);
         return NULL;
     }
 
@@ -234,14 +234,14 @@ uthread_join(uthread_t tid) {
  */
 void 
 init() {
-    printf("Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
+    printf("[uthread_join] Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
     struct sigaction sa; 
     sa.sa_handler = timer_handler; // Set the signal handler for SIGALRM
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
 
     if (sigaction(SIGALRM, &sa, NULL) == -1) { // Set up the signal handler
-        ERROR_PRINT("Failed to set up signal handler\n");
+        ERROR_PRINT("[uthread_join] Failed to set up signal handler\n");
         exit(EXIT_FAILURE);
     }
 
@@ -250,7 +250,7 @@ init() {
     timer.it_interval = timer.it_value;
 
     if (setitimer(ITIMER_REAL, &timer, NULL) == -1) {
-        ERROR_PRINT("Failed to set up timer\n");
+        ERROR_PRINT("[uthread_join] Failed to set up timer\n");
         exit(EXIT_FAILURE);
     }
     sigemptyset(&signal_set);
@@ -260,9 +260,10 @@ init() {
 void 
 uthread_run(void) {
     if (thread_start) {
-        ERROR_PRINT("Thread scheduler already started\n");
+        ERROR_PRINT("[uthread_run] Thread scheduler already started\n");
         return;
     }
+    thread_start = 1;
     thread_table[0].tid = 0;
     thread_table[0].state = THREAD_RUNNING;
     thread_table[0].stack = NULL;
@@ -272,6 +273,6 @@ uthread_run(void) {
 
     init();
     schedule_next();
-    thread_start = 1;
 }
+// gcc test.c include/uthread.c include/queue.c -o test
 
