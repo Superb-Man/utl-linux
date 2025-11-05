@@ -12,11 +12,14 @@
 
 
 uthread_tcb_t thread_table[MAX_THREADS];  
-uthread_t current_tid = 0;         
+uthread_t current_tid = -1;         
 int thread_start = 0;        
 int time_slice_ms = 10;
 struct itimerval timer;
 sigset_t signal_set;
+
+void init();
+void uthread_deinit();
 
 
 void print_thread(uthread_tcb_t tcb) {
@@ -52,6 +55,7 @@ void thread_wrapper() {
     uthread_tcb_t* tcb = &thread_table[current_tid];
     tcb->start_func(tcb->arg);
     uthread_exit(NULL); // Exit the thread when done
+
 }
 
 
@@ -115,17 +119,21 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
             //         active++;
             // }
             enqueue_thread(&thread_table[i]);
-            unblock();
             
             DEBUG_PRINT("[uthread_create] Created thread %d with stack at %p\n", i, thread_table[i].stack);
-            if (thread_start == 0) {
-                DEBUG_PRINT("[uthread_create] Starting thread scheduler\n");
-                uthread_run();
-            }
-            else if (queue_size(&ready_queue) == 1 && !thread_start) {
+            // if (!thread_start) {
+            //     DEBUG_PRINT("[uthread_create] Starting thread scheduler\n");
+            //     uthread_deinit();
+            // }
+
+            DEBUG_PRINT("Queue size after creating thread %d: %d\n", i, queue_size(&ready_queue));
+            if ((queue_size(&ready_queue) > 1)) {
                 DEBUG_PRINT("[uthread_create] Scheduling next thread\n");
-                schedule_next();
+                // schedule_next();
+                init();
             }
+            unblock();
+
             return i;
 
         }
@@ -184,6 +192,10 @@ uthread_yield() {
     }
 
     DEBUG_PRINT("[uthread_yield] Yielding thread %d\n", current_tid);
+    if (queue_size(&ready_queue) == 1) {
+        DEBUG_PRINT("[uthread_yield] No other threads to schedule, continuing execution of thread %d\n", current_tid);
+        uthread_deinit();
+    }
     unblock();
     schedule_next(); 
 }
@@ -234,14 +246,14 @@ uthread_join(uthread_t tid) {
  */
 void 
 init() {
-    printf("[uthread_join] Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
+    printf("[uthread_init] Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
     struct sigaction sa; 
     sa.sa_handler = timer_handler; // Set the signal handler for SIGALRM
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
 
     if (sigaction(SIGALRM, &sa, NULL) == -1) { // Set up the signal handler
-        ERROR_PRINT("[uthread_join] Failed to set up signal handler\n");
+        ERROR_PRINT("[uthread_init] Failed to set up signal handler\n");
         exit(EXIT_FAILURE);
     }
 
@@ -250,11 +262,20 @@ init() {
     timer.it_interval = timer.it_value;
 
     if (setitimer(ITIMER_REAL, &timer, NULL) == -1) {
-        ERROR_PRINT("[uthread_join] Failed to set up timer\n");
+        ERROR_PRINT("[uthread_init] Failed to set up timer\n");
         exit(EXIT_FAILURE);
     }
     sigemptyset(&signal_set);
     sigaddset(&signal_set, SIGALRM);
+}
+
+void uthread_deinit() {
+    // Disable the timer
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 0;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL);
 }
 
 void 
@@ -271,7 +292,8 @@ uthread_run(void) {
     getcontext(&thread_table[0].context);
     current_tid = 0;
 
-    init();
+    // init();
+    // uthread_deinit();
     schedule_next();
 }
 // gcc test.c include/uthread.c include/queue.c -o test
