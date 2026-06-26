@@ -30,7 +30,7 @@ void dummy_thread2(void* arg) {
 
     // simulate doing work
     // uthread_sleep(3);
-    for (int i = 0; i < 00000000; i++) {
+    for (int i = 0; i < 10000000; i++) {
         cnt++;
         // yield to let other threads (including main) run
         // uthread_yield();
