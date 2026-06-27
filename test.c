@@ -69,13 +69,14 @@ void main_thread_func(void* arg) {
 
         // uthread_yield();
     }
-    // uthread_join(t1);
-    // uthread_join(t2);
+    uthread_join(t1);
+    uthread_join(t2);
     // uthread_join(t3);
 
     printf("Final cnt = %ld\n", cnt);
     finished++;
-    if (finished ==1) {
+    uthread_sleep(5000);
+    if (finished == 3) {
         printf("Main thread exiting, cnt = %ld\n", cnt);
     }
 }

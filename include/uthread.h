@@ -57,6 +57,8 @@ uthread_t get_tid(void); // get the current thread ID
 void uthread_yield(); // yield the CPU to another thread
 void uthread_run(void); // start the thread scheduler
 void uthread_sleep(int ms);
+void init();
+void uthread_deinit();
 
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;

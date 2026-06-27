@@ -18,10 +18,6 @@ int time_slice_ms = 10;
 struct itimerval timer;
 sigset_t signal_set;
 
-void init();
-void uthread_deinit();
-
-
 void print_thread(uthread_tcb_t tcb) {
     DEBUG_PRINT("Thread ID: %d\n", tcb.tid);
     DEBUG_PRINT("State: %d\n", tcb.state);
