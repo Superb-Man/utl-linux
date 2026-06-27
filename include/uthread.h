@@ -69,4 +69,6 @@ extern sigset_t signal_set;
 
 void timer_handler(int signum);
 
+long long now_ms();
+
 #endif

@@ -39,7 +39,6 @@ long long now_ms() {
     return (long long)(tv.tv_sec) * 1000 + (tv.tv_usec / 1000);
 }
 
-
 int get_tid(void) {
     // This function should return the current thread ID
     // Assuming current_tid is a global variable that holds the ID of the currently running thread
@@ -63,8 +62,18 @@ void
 timer_handler(int signum) {
     // This function is called when the timer expires
     // It should yield the current thread and schedule the next one
+    // wake up handling
+    long long now = now_ms();
+    for (int i = 1; i < MAX_THREADS; ++i) {
+        if (thread_table[i].state == THREAD_BLOCKED && thread_table[i].wakeup_time > 0
+            && thread_table[i].wakeup_time <= now) {
+            thread_table[i].state = THREAD_READY;
+            thread_table[i].wakeup_time = 0;
+            enqueue_thread(&thread_table[i]);
+        }
+    }
     printf("Timer expired for thread %d\n", current_tid);
-    if (thread_table[current_tid].state == THREAD_RUNNING) {
+    if (current_tid >= 0 && thread_table[current_tid].state == THREAD_RUNNING) {
         thread_table[current_tid].state = THREAD_READY;
         enqueue_thread(&thread_table[current_tid]);
         schedule_next();
@@ -198,6 +207,16 @@ uthread_yield() {
     }
     unblock();
     schedule_next(); 
+}
+
+void
+uthread_sleep(int ms) {
+    block();
+    uthread_tcb_t* current = &thread_table[current_tid];
+    current->wakeup_time = now_ms() + ms;
+    current->state = THREAD_BLOCKED;
+    unblock();
+    schedule_next();
 }
 
 /**

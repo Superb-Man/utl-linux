@@ -40,18 +40,20 @@ void schedule_next() {
 
     // what is the loop doing?
     // It iterates through the ready queue to find the next thread that is in the THREAD_READY state.
-   
-    while (!queue_is_empty(&ready_queue)) {
-        next = (uthread_tcb_t*) queue_pop(&ready_queue);
-        if (next->state == THREAD_READY)
-            break;
-        next = NULL;
-    }
 
-    DEBUG_PRINT("[Schedule next] Switching from thread %d to thread %d\n", current_tid, next ? next->tid : -1);
-    unblock();
+    while (1) {
+        while (!queue_is_empty(&ready_queue)) {
+            next = (uthread_tcb_t*) queue_pop(&ready_queue);
+            if (next->state == THREAD_READY)
+                break;
+            next = NULL;
+        }
 
-    if (!next) {
+        if (next) break;
+
+        // DEBUG_PRINT("[Schedule next] Switching from thread %d to thread %d\n", current_tid, next ? next->tid : -1);
+        // unblock();
+
         // Check if any threads are still BLOCKED or RUNNING
         int any_active = 0;
         for (int i = 1; i < MAX_THREADS; i++) {
@@ -65,12 +67,31 @@ void schedule_next() {
             ERROR_PRINT("[Schedule next] All threads have finished.\n");
             exit(0);
         }
-        return; 
+
+        long long now = now_ms();
+        long long wakeup = 0;
+
+        for (int i = 1; i < MAX_THREADS; i++) {
+            if (thread_table[i].state == THREAD_BLOCKED && thread_table[i].wakeup_time > 0) {
+                long long remaining = thread_table[i].wakeup_time - now;
+                if (remaining > 0 && (wakeup == 0 || remaining < wakeup))
+                    wakeup = remaining;
+            }
+        }
+
+        unblock();
+
+        if (wakeup > 0 && wakeup < 100000)
+            usleep((useconds_t)wakeup * 1000);  // ms -> us
+        else
+            usleep(50000);  // 50ms default poll interval
+        block();
     }
 
     current_tid = next->tid;
     next->state = THREAD_RUNNING;
 
+    unblock();
     // DEBUG_PRINT("Switching from thread %d to thread %d\n", prev->tid, next->tid);
     // DEBUG_PRINT("address of prev->context: %p\n", (void*)&prev->context);
     // DEBUG_PRINT("address of next->context: %p\n", (void*)&next->context);
