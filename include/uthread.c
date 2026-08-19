@@ -68,7 +68,7 @@ timer_handler(int signum) {
             enqueue_thread(&thread_table[i]);
         }
     }
-    printf("Timer expired for thread %d\n", current_tid);
+    DEBUG_PRINT("Timer expired for thread %d\n", current_tid);
     if (current_tid >= 0 && thread_table[current_tid].state == THREAD_RUNNING) {
         thread_table[current_tid].state = THREAD_READY;
         enqueue_thread(&thread_table[current_tid]);

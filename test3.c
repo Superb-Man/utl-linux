@@ -6,7 +6,7 @@ int cnt = 0;
 void dummy_thread(void* arg) {
     int id = *(int* )arg;
     // uthread_yield();
-    uthread_sleep(5000);
+    uthread_sleep(15000);
     printf("arg: %d\n", id);
     printf("Value of cnt: %d\n", cnt);
 }
@@ -22,15 +22,14 @@ void main_thread_func(void* arg) {
         printf("Main thread: iteration %d, cnt = %d\n", i, cnt);
     }
 
-    // join the threads
-    uthread_join(t1);
-    uthread_join(t2);
-    uthread_join(t3);
-
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10000; i++) {
         cnt++;
         printf("Main thread: iteration %d, cnt = %d\n", i, cnt);
     }
+
+    uthread_join(t1);
+    uthread_join(t2);
+    uthread_join(t3);
 }
 
 int main() {
