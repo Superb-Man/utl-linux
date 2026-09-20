@@ -47,6 +47,7 @@ typedef struct uthread {
     struct uthread* waiting_thread;
     ucontext_t context;
     long long wakeup_time;
+    struct uthread* sched_next;
 } uthread_tcb_t;
 
 void print_thread(uthread_tcb_t tcb); // for debugging purposes
@@ -59,6 +60,7 @@ void uthread_run(void); // start the thread scheduler
 void uthread_sleep(int ms);
 void init();
 void uthread_deinit();
+void enqueue_thread(uthread_tcb_t* tcb); // defined in scheduler.h, used by mutex/cond/semaphore
 
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;

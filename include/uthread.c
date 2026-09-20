@@ -56,6 +56,7 @@ void thread_wrapper() {
 
 void 
 timer_handler(int signum) {
+    (void) signum;
     // This function is called when the timer expires
     // It should yield the current thread and schedule the next one
     // wake up handling
@@ -202,7 +203,7 @@ uthread_yield() {
         uthread_deinit();
     }
     unblock();
-    schedule_next(); 
+    schedule_next();
 }
 
 void

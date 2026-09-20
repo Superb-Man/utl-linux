@@ -7,6 +7,44 @@
 static queue_t ready_queue;
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;
+
+#include "uthread.h"
+
+static uthread_tcb_t* ready_head = NULL;
+static uthread_tcb_t* ready_tail = NULL;
+
+extern uthread_tcb_t thread_table[MAX_THREADS];
+extern uthread_t current_tid;
+
+void 
+enqueue_thread(uthread_tcb_t* tcb) {
+    if (tcb->state != THREAD_READY) return;
+    tcb->sched_next = NULL;
+    if (ready_tail) {
+        ready_tail->sched_next = tcb;
+    }
+    else {
+        ready_head = tcb;
+    }
+    ready_tail = tcb;
+}
+
+static uthread_tcb_t* 
+dequeue_ready(void) {
+    uthread_tcb_t* tcb = ready_head;
+    if (tcb) {
+        ready_head = tcb->sched_next;
+        if (!ready_head) {
+            ready_tail = NULL;
+        }
+    }
+    return tcb;
+}
+
+static int 
+ready_queue_empty(void) {
+    return ready_head == NULL;
+}
 // static int scheduler_initialized = 0;
 
 // void scheduler_init(void) {
@@ -16,13 +54,6 @@ extern uthread_t current_tid;
 //     }
 // }
 
-void enqueue_thread(uthread_tcb_t* tcb) {
-    if (tcb->state == THREAD_READY) {
-        queue_push(&ready_queue, tcb);
-        DEBUG_PRINT("[enqueue_thread] Enqueued thread %d at the end of queue\n", tcb->tid);
-
-    }
-}
 
 /**
  * @brief Schedule the next thread to run
@@ -56,8 +87,8 @@ void schedule_next() {
     }
 
     // Pop the next ready thread from the queue
-    while (!queue_is_empty(&ready_queue)) {
-        next = (uthread_tcb_t*) queue_pop(&ready_queue);
+    while (!ready_queue_empty()) {
+        next = dequeue_ready();
         if (next->state == THREAD_READY)
             break;
         next = NULL;
