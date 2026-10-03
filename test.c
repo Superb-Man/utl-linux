@@ -9,7 +9,7 @@ void dummy_thread(void* arg) {
     // sleep(3);
 
     // simulate doing work
-    // uthread_sleep(3);
+    uthread_sleep(20000);
     for (int i = 0; i < 200000000; i++) {
         cnt++;
         // yield to let other threads (including main) run
@@ -69,6 +69,8 @@ void main_thread_func(void* arg) {
 
         // uthread_yield();
     }
+    printf("Main thread: counting finished, cnt = %ld\n", cnt);
+
     uthread_join(t1);
     uthread_join(t2);
     // uthread_join(t3);

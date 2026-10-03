@@ -1,6 +1,6 @@
 CC     = gcc
-TARGET = test3
-PC_TARGET = test3
+TARGET = test
+PC_TARGET = test
 
 UTL_SRCS = include/uthread.c include/queue.c include/mutex.c include/cond.c include/semaphore.c
 

@@ -132,12 +132,12 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
             //     uthread_deinit();
             // }
 
-            DEBUG_PRINT("Queue size after creating thread %d: %d\n", i, queue_size(&ready_queue));
-            if ((queue_size(&ready_queue) > 1)) {
-                DEBUG_PRINT("[uthread_create] Scheduling next thread\n");
-                // schedule_next();
-                init();
-            }
+            // DEBUG_PRINT("Queue size after creating thread %d: %d\n", i, queue_size(&ready_queue));
+            // if ((ready_queue_size() > 1)) {
+            //     DEBUG_PRINT("[uthread_create] Scheduling next thread\n");
+            //     // schedule_next();
+            //     init();
+            // }
             unblock();
 
             return i;
@@ -198,7 +198,7 @@ uthread_yield() {
     }
 
     DEBUG_PRINT("[uthread_yield] Yielding thread %d\n", current_tid);
-    if (queue_size(&ready_queue) == 1) {
+    if (ready_queue_size() == 1) {
         DEBUG_PRINT("[uthread_yield] No other threads to schedule, continuing execution of thread %d\n", current_tid);
         uthread_deinit();
     }
@@ -308,7 +308,7 @@ uthread_run(void) {
     getcontext(&thread_table[0].context);
     current_tid = 0;
 
-    // init();
+    init();
     // uthread_deinit();
     schedule_next();
 }

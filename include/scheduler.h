@@ -4,7 +4,6 @@
 #include "uthread.h"
 #include "queue.h"
 
-static queue_t ready_queue;
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;
 
@@ -44,6 +43,17 @@ dequeue_ready(void) {
 static int 
 ready_queue_empty(void) {
     return ready_head == NULL;
+}
+
+static int
+ready_queue_size(void) {
+    int size = 0;
+    uthread_tcb_t* current = ready_head;
+    while (current) {
+        size++;
+        current = current->sched_next;
+    }
+    return size;
 }
 // static int scheduler_initialized = 0;
 
