@@ -7,15 +7,19 @@ void uthread_cond_init(uthread_cond_t* cond) {
 }
 
 void uthread_cond_wait(uthread_cond_t* cond, uthread_mutex_t* mutex) {
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     uthread_tcb_t* current = &thread_table[get_tid()];
     current->state = THREAD_BLOCKED;
     queue_push(&cond->waiters, current); // add current into waiting queue
     uthread_mutex_unlock(mutex);
-    uthread_yield();
+    schedule_next_locked(&previous_mask);
     uthread_mutex_lock(mutex);
 }
 
 void uthread_cond_signal(uthread_cond_t* cond) {
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     uthread_mutex_lock(&cond->lock);
     if (!queue_is_empty(&cond->waiters)) {
         uthread_tcb_t* tcb = queue_pop(&cond->waiters);
@@ -23,10 +27,13 @@ void uthread_cond_signal(uthread_cond_t* cond) {
         enqueue_thread(tcb); // add the thread back to the ready queue
     }
     uthread_mutex_unlock(&cond->lock);
+    sigprocmask(SIG_SETMASK, &previous_mask, NULL);
 }
 
 
 void uthread_cond_broadcast(uthread_cond_t* cond) {
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     uthread_mutex_lock(&cond->lock); // might not be necessary for single thread
     while (!queue_is_empty(&cond->waiters)) {
         uthread_tcb_t* tcb = queue_pop(&cond->waiters);
@@ -35,4 +42,5 @@ void uthread_cond_broadcast(uthread_cond_t* cond) {
         // uthread_cond_signal(cond);
     }
     uthread_mutex_unlock(&cond->lock);
+    sigprocmask(SIG_SETMASK, &previous_mask, NULL);
 }

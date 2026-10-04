@@ -61,6 +61,7 @@ void uthread_sleep(int ms);
 void init();
 void uthread_deinit();
 void enqueue_thread(uthread_tcb_t* tcb); // defined in scheduler.h, used by mutex/cond/semaphore
+void schedule_next_locked(const sigset_t* previous_mask); // Called with SIGALRM blocked after marking the current thread ready/blocked.
 
 extern uthread_tcb_t thread_table[MAX_THREADS];
 extern uthread_t current_tid;

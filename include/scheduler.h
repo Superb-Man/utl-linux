@@ -36,6 +36,7 @@ dequeue_ready(void) {
         if (!ready_head) {
             ready_tail = NULL;
         }
+        tcb->sched_next = NULL;
     }
     return tcb;
 }
@@ -45,16 +46,20 @@ ready_queue_empty(void) {
     return ready_head == NULL;
 }
 
-static int
-ready_queue_size(void) {
-    int size = 0;
-    uthread_tcb_t* current = ready_head;
-    while (current) {
-        size++;
-        current = current->sched_next;
+// The queue may contain stale entries whose state changed after enqueueing. */
+static int ready_queue_has_other(const uthread_tcb_t* current) {
+    uthread_tcb_t* thread = ready_head;
+
+    while (thread != NULL)
+    {
+        if (thread != current && thread->state == THREAD_READY)
+            return 1;
+        thread = thread->sched_next;
     }
-    return size;
+    
+    return 0;
 }
+
 // static int scheduler_initialized = 0;
 
 // void scheduler_init(void) {
@@ -77,8 +82,7 @@ ready_queue_size(void) {
  *      for that duration, re-enables the timer, and loops back to step 1.
  *   5. If no threads are active at all, exits the program.
  */
-void schedule_next() {
-    block();
+void schedule_next_locked(const sigset_t* previous_mask) {
     DEBUG_PRINT("[Schedule next] [current_tid] Current thread ID: %d\n", current_tid);
     uthread_tcb_t* prev = &thread_table[current_tid];
     uthread_tcb_t* next = NULL;
@@ -110,9 +114,15 @@ void schedule_next() {
         DEBUG_PRINT("[Schedule next] Switching from thread %d to thread %d\n", prev->tid, next->tid);
         // DEBUG_PRINT("address of prev->context: %p\n", (void*)&prev->context);
         // DEBUG_PRINT("address of next->context: %p\n", (void*)&next->context);
-        unblock();
-        swapcontext(&prev->context, &next->context);
-
+        if (next != prev) {
+            // swapcontext saves the blocked mask in prev and restores next's
+            // mask as it starts. Do not expose current_tid before the swap.
+            if (swapcontext(&prev->context, &next->context) == -1) {
+                perror("swapcontext");
+                exit(EXIT_FAILURE);
+            }
+        }
+        sigprocmask(SIG_SETMASK, previous_mask, NULL);
         return;
     }
 
@@ -126,7 +136,7 @@ void schedule_next() {
     }
 
     if (!any_active) {
-        unblock();
+        sigprocmask(SIG_SETMASK, previous_mask, NULL);
         ERROR_PRINT("[Schedule next] All threads have finished.\n");
         exit(0);
     }
@@ -142,12 +152,18 @@ void schedule_next() {
     }
 
     uthread_deinit();
-    unblock();
+    sigprocmask(SIG_SETMASK, previous_mask, NULL);
     if (nearest_wakeup > 0)
         usleep((useconds_t)nearest_wakeup * 1000);
     else
         usleep(10000);  // fallback (shouldn't normally reach here)
     block();
     init();  // re-enable timer
-    schedule_next();
+    schedule_next_locked(previous_mask);
+}
+
+void schedule_next(void) {
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
+    schedule_next_locked(&previous_mask);
 }

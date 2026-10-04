@@ -69,8 +69,12 @@ timer_handler(int signum) {
             enqueue_thread(&thread_table[i]);
         }
     }
-    DEBUG_PRINT("Timer expired for thread %d\n", current_tid);
     if (current_tid >= 0 && thread_table[current_tid].state == THREAD_RUNNING) {
+        // Keep the periodic timer alive so sleepers can wake, but do not
+        // schedule a thread against itself when nobody else is runnable.
+        if (!ready_queue_has_other(&thread_table[current_tid])) return;
+
+        DEBUG_PRINT("Timer expired for thread %d\n", current_tid);
         thread_table[current_tid].state = THREAD_READY;
         enqueue_thread(&thread_table[current_tid]);
         schedule_next();
@@ -90,7 +94,8 @@ timer_handler(int signum) {
  */
 int 
 uthread_create(void (*start_routine)(void* ), void* arg) {
-    block(); 
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     // uthread_run();
     for (int i = 1; i < MAX_THREADS; ++i) {
 
@@ -99,7 +104,7 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
         if (thread_table[i].state == THREAD_UNUSED) { // if the thread is unused
             if (posix_memalign((void **)&thread_table[i].stack, 16, STACK_SIZE) != 0) {
                 ERROR_PRINT("[uthread_create] Failed to allocate aligned stack for thread %d\n", i);
-                unblock();
+                sigprocmask(SIG_SETMASK, &previous_mask, NULL);
                 ERROR_PRINT("[uthread_create] posix_memalign failed");
                 return -1;
             }
@@ -114,6 +119,9 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
 
             ucontext_t* ctx = &thread_table[i].context;
             getcontext(ctx);
+            // getcontext ran inside the critical section. New threads must
+            // start with the caller's mask, not with SIGALRM blocked.
+            ctx->uc_sigmask = previous_mask;
 
             ctx->uc_stack.ss_sp = thread_table[i].stack;
             ctx->uc_stack.ss_size = STACK_SIZE;
@@ -138,7 +146,7 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
             //     // schedule_next();
             //     init();
             // }
-            unblock();
+            sigprocmask(SIG_SETMASK, &previous_mask, NULL);
 
             return i;
 
@@ -146,7 +154,7 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
     }
 
     ERROR_PRINT("[uthread_create] No available thread slots\n");
-    unblock();
+    sigprocmask(SIG_SETMASK, &previous_mask, NULL);
     return -1;
 }
 
@@ -165,7 +173,8 @@ uthread_create(void (*start_routine)(void* ), void* arg) {
  */
 void 
 uthread_exit(void* retval) {
-    block();
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     uthread_tcb_t* tcb = &thread_table[current_tid];
     tcb->retval = retval;
     tcb->state = THREAD_ZOMBIE;
@@ -175,8 +184,8 @@ uthread_exit(void* retval) {
         enqueue_thread(tcb->waiting_thread);
     }
 
-    unblock();
-    uthread_yield();
+    schedule_next_locked(&previous_mask);
+    abort();  // A zombie thread must never run again.
 }
 
 
@@ -189,31 +198,37 @@ uthread_exit(void* retval) {
  */
 void 
 uthread_yield() {
-    block();
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     uthread_tcb_t* current = &thread_table[current_tid];
 
     if (current->state == THREAD_RUNNING && current_tid != 0) {
+        if (!ready_queue_has_other(current)) {
+            sigprocmask(SIG_SETMASK, &previous_mask, NULL);
+            return;
+        }
         current->state = THREAD_READY;
         enqueue_thread(current);
     }
 
+    // if (ready_queue_has_other(current) == 0) {
+    //     DEBUG_PRINT("[uthread_yield] No other threads to schedule, continuing execution of thread %d\n", current_tid);
+    //     uthread_deinit();
+    // }
+
     DEBUG_PRINT("[uthread_yield] Yielding thread %d\n", current_tid);
-    if (ready_queue_size() == 1) {
-        DEBUG_PRINT("[uthread_yield] No other threads to schedule, continuing execution of thread %d\n", current_tid);
-        uthread_deinit();
-    }
-    unblock();
-    schedule_next();
+    schedule_next_locked(&previous_mask);
 }
 
 void
 uthread_sleep(int ms) {
-    block();
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
+
     uthread_tcb_t* current = &thread_table[current_tid];
     current->wakeup_time = now_ms() + ms;
     current->state = THREAD_BLOCKED;
-    unblock();
-    schedule_next();
+    schedule_next_locked(&previous_mask);
 }
 
 /**
@@ -224,34 +239,42 @@ uthread_sleep(int ms) {
  */
 void* 
 uthread_join(uthread_t tid) {
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
+
     if (tid < 0 || tid >= MAX_THREADS || thread_table[tid].state == THREAD_UNUSED ) {
         ERROR_PRINT("[uthread_join] Invalid thread ID: %d\n", tid);
+        sigprocmask(SIG_SETMASK, &previous_mask, NULL);
         return NULL;
     }
 
     if (tid == current_tid) {
         ERROR_PRINT("[uthread_join] Cannot join the current thread: %d\n", tid);
+        sigprocmask(SIG_SETMASK, &previous_mask, NULL);
         return NULL;
     }
 
     uthread_tcb_t* target = &thread_table[tid];
 
     if (target->state != THREAD_ZOMBIE) {
-        block();
         uthread_tcb_t* current = &thread_table[current_tid];
         current->state = THREAD_BLOCKED;
         target->waiting_thread = current;
 
         DEBUG_PRINT("[uthread_join] Blocking thread %d, waiting for thread %d to finish\n", current_tid, tid);
-        unblock();
-        uthread_yield(); // Yield to allow the target thread to run
+        schedule_next_locked(&previous_mask);
+
+        sigprocmask(SIG_BLOCK, &signal_set, NULL);
     }
 
     free(target->stack);
     target->state = THREAD_UNUSED; // Mark the thread as unused
     DEBUG_PRINT("[uthread_join] Thread %d has finished, return value: %p\n", tid, target->retval);
+    
+    void* retval = target->retval;
+    sigprocmask(SIG_SETMASK, &previous_mask, NULL);
 
-   return target->retval;
+    return retval;
 }
 
 /**
@@ -263,6 +286,10 @@ uthread_join(uthread_t tid) {
 void 
 init() {
     printf("[uthread_init] Initializing thread scheduler with time slice: %d ms\n", time_slice_ms);
+    
+    sigemptyset(&signal_set);
+    sigaddset(&signal_set, SIGALRM);
+
     struct sigaction sa; 
     sa.sa_handler = timer_handler; // Set the signal handler for SIGALRM
     sigemptyset(&sa.sa_mask);
@@ -281,8 +308,6 @@ init() {
         ERROR_PRINT("[uthread_init] Failed to set up timer\n");
         exit(EXIT_FAILURE);
     }
-    sigemptyset(&signal_set);
-    sigaddset(&signal_set, SIGALRM);
 }
 
 void uthread_deinit() {

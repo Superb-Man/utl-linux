@@ -9,23 +9,24 @@ void uthread_sem_init(uthread_sem_t* sem, int value) {
 
 
 void uthread_sem_wait(uthread_sem_t* sem) {
-    block();
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
     if (sem->value > 0) {
         sem->value--;
-        unblock();
+        sigprocmask(SIG_SETMASK, &previous_mask, NULL);
         return;
     } 
 
     uthread_tcb_t* current = &thread_table[get_tid()];
     current->state = THREAD_BLOCKED;
     queue_push(&sem->waiters, current);
-    unblock();
-    uthread_yield();
+    schedule_next_locked(&previous_mask);
 }
 
 
 void uthread_sem_post(uthread_sem_t* sem) {
-    block();
+    sigset_t previous_mask;
+    sigprocmask(SIG_BLOCK, &signal_set, &previous_mask);
 
     if (!queue_is_empty(&sem->waiters)) {
         uthread_tcb_t* tcb = (uthread_tcb_t*)queue_pop(&sem->waiters);
@@ -34,5 +35,5 @@ void uthread_sem_post(uthread_sem_t* sem) {
     } else {
         sem->value++;
     }
-    unblock();
+    sigprocmask(SIG_SETMASK, &previous_mask, NULL);
 }
