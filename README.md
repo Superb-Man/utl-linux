@@ -166,6 +166,6 @@ int main() {
 
 ## Status
 
-This is a learning/research project exploring user-level threading concepts (context
+This is a learning project exploring user-level threading concepts (context
 switching, cooperative and preemptive scheduling, and synchronization primitives) on
-Linux. Contributions, bug reports, and review feedback are welcome.
+Linux.
